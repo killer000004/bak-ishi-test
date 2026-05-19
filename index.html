@@ -46,7 +46,7 @@
 </div>
 
 <script>
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbxAlLLmpLteYCeyTr3IEQxr5HKVq_g8lscgsR3z3yeiAWsw8bIKVG2nEUO0indDb4nx/exec"; 
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbzAlLLmpLteYCeyTr3IEQxr5HKVq_g8lscgsR3z3yeiAWsw8bIKVG2nEUO0indDb4nx/exec"; 
 
     let allQuestions = [];
     let timerInterval;
@@ -59,7 +59,7 @@
             renderQuiz();
             startTimer();
         } catch (error) {
-            document.getElementById('loader').innerHTML = "<b style='color:red'>Xatolik! Ulanishni tekshiring.</b>";
+            document.getElementById('loader').innerHTML = "<b style='color:red'>Xatolik! Ulanishni tekshiring yoki GAS_URL ni tekshiring.</b>";
         }
     }
 
@@ -83,10 +83,24 @@
         const area = document.getElementById('questions-area');
         const shuffle = (a) => a.sort(() => Math.random() - 0.5);
         
-        // Yangi fanlar bo'yicha savollarni saralash (klasifikatsiya filtri)
-        let poolMonetar = allQuestions.filter(q => q.blok.toLowerCase().includes('monetar'));
-        let poolBank = allQuestions.filter(q => q.blok.toLowerCase().includes('bank ishi') || q.blok.toLowerCase().includes('moliya asoslari'));
-        let poolXalqaro = allQuestions.filter(q => q.blok.toLowerCase().includes('xalqaro'));
+        // Agar kesh/baza obyekti turli kalitlar bilan kelsa, ularni normallashtiramiz
+        let normalizedQuestions = allQuestions.map(q => {
+            return {
+                savol: q.savol || q["Savol matni"] || q["Savol"] || "",
+                javob: q.javob || q["To'g'ri javob "] || q["To‘g‘ri javob"] || q["To'g'ri javob"] || "",
+                xato: Array.isArray(q.xato) ? q.xato : [
+                    q.xato || q["Variant B"] || q["Xato javob"],
+                    q["Variant C"] || q["Xato javob2"] || "", 
+                    q["Variant D"] || q["Xato javob3"] || ""
+                ].filter(Boolean),
+                blok: q.blok || q["blok"] || q["Fan nomi"] || ""
+            };
+        });
+
+        // Yangi fanlar bo'yicha savollarni saralash (fayl nomlari va blok matniga asosan)
+        let poolMonetar = normalizedQuestions.filter(q => q.blok.toLowerCase().includes('monetar'));
+        let poolBank = normalizedQuestions.filter(q => q.blok.toLowerCase().includes('bank ishi') || q.blok.toLowerCase().includes('moliya asoslari'));
+        let poolXalqaro = normalizedQuestions.filter(q => q.blok.toLowerCase().includes('xalqaro'));
 
         // Savollardan belgilangan miqdorda tasodifiy tanlab olish (17 + 17 + 16 = 50 ta savol)
         let selected = [
@@ -98,10 +112,11 @@
         area.innerHTML = selected.map((item, idx) => {
             const options = shuffle([item.javob, ...item.xato]);
             
+            // TUZATILDI: Uchinchi sarlavha ko'rinishi uchun indeks 34 qilib belgilandi!
             let blockHeader = "";
-            if (idx === 0) blockHeader = "<div class='subject-header'>I. Monetar siyosat</div>";
-            if (idx === 17) blockHeader = "<div class='subject-header'>II. Bank ishi va moliya asoslari</div>";
-            if (idx === 50) blockHeader = "<div class='subject-header'>III. Xalqaro moliya va bank ishi</div>";
+            if (idx === 0) blockHeader = "<div class='subject-header'>I. Monetar siyosat (1-17)</div>";
+            if (idx === 17) blockHeader = "<div class='subject-header'>II. Bank ishi va moliya asoslari (18-34)</div>";
+            if (idx === 34) blockHeader = "<div class='subject-header'>III. Xalqaro moliya va bank ishi (35-50)</div>";
 
             return `
                 ${blockHeader}
