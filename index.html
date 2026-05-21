@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Imtihon testi (100 ballik tizim)</title>
+    <style>
+        :root { --p: #3498db; --d: #2c3e50; --bg: #f4f7f6; --s: #27ae60; --err: #e74c3c; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); padding: 20px; }
+        .container { max-width: 850px; margin: auto; background: white; padding: 25px; border-radius: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); position: relative; }
+        h1 { text-align: center; color: var(--d); border-bottom: 3px solid var(--p); padding-bottom: 10px; }
+        
+        /* Taymer va Ball stili */
+        #top-bar { position: sticky; top: 10px; z-index: 100; display: flex; gap: 10px; margin-bottom: 20px; }
+        .info-card { flex: 1; background: var(--d); color: white; padding: 10px; border-radius: 8px; text-align: center; font-size: 1.1em; font-weight: bold; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
+        
+        .loading { text-align: center; font-size: 1.2em; padding: 50px; color: var(--p); }
+        .subject-header { background: #ecf0f1; color: var(--d); padding: 10px; margin: 30px 0 10px; border-radius: 5px; font-weight: bold; border-left: 5px solid var(--p); }
+        .q-card { border: 1px solid #ddd; padding: 20px; margin-bottom: 20px; border-radius: 10px; background: #fff; }
+        .options label { display: block; padding: 12px; border: 1px solid #eee; margin-top: 8px; border-radius: 8px; cursor: pointer; transition: 0.2s; }
+        .options label:hover { background: #f0f4f8; }
+        .btn { background: var(--s); color: white; border: none; padding: 15px; width: 100%; border-radius: 8px; cursor: pointer; font-size: 1.1em; font-weight: bold; margin-top: 20px; }
+        .correct { background: #d4edda !important; border-color: #28a745 !important; color: #155724; }
+        .wrong { background: #f8d7da !important; border-color: #dc3545 !important; color: #721c24; }
+        #result-area { text-align: center; padding: 30px; background: #eef7ff; border-radius: 10px; margin-bottom: 20px; display: none; border: 2px solid var(--p); }
+        .score-big { font-size: 2em; color: var(--p); margin: 10px 0; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Imtihon testi</h1>
+    
+    <div id="top-bar" style="display: none;">
+        <div class="info-card">Vaqt: <span id="timer">60:00</span></div>
+        <div class="info-card">Tizim: 1 ta to'g'ri javob = 2 ball</div>
+    </div>
+    
+    <div id="loader" class="loading">Google Sheets-dan savollar yuklanmoqda...</div>
+
+    <div id="quiz-container" style="display:none;">
+        <div id="result-area"></div>
+        <div id="questions-area"></div>
+        <button class="btn" id="finish-btn" onclick="checkResults()">Testni yakunlash va ballni bilish</button>
+    </div>
+</div>
+
+<script>
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbwv2eCChRBcx9zQVsF05eKMuLTRWUm0WyAx1kPMgoLzsbMFBufkXZMZa0gSz53DgByj/exec"; 
+
+    let allQuestions = [];
+    let timerInterval;
+    let timeLeft = 60 * 60; 
+
+    async function loadQuestions() {
+        try {
+            const response = await fetch(GAS_URL);
+            allQuestions = await response.json();
+            renderQuiz();
+            startTimer();
+        } catch (error) {
+            document.getElementById('loader').innerHTML = "<b style='color:red'>Xatolik! Ulanishni tekshiring yoki GAS_URL ni tekshiring.</b>";
+        }
+    }
+
+    function startTimer() {
+        document.getElementById('top-bar').style.display = 'flex';
+        timerInterval = setInterval(() => {
+            timeLeft--;
+            let mins = Math.floor(timeLeft / 60);
+            let secs = timeLeft % 60;
+            document.getElementById('timer').innerText = `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+
+            if (timeLeft <= 0) {
+                clearInterval(timerInterval);
+                alert("Vaqt tugadi! Testingiz avtomatik ravishda tekshiriladi.");
+                checkResults();
+            }
+        }, 1000);
+    }
+
+    function renderQuiz() {
+        const area = document.getElementById('questions-area');
+        const shuffle = (a) => a.sort(() => Math.random() - 0.5);
+                
+        // Agar kesh/baza obyekti turli kalitlar bilan kelsa, ularni normallashtiramiz
+        let normalizedQuestions = allQuestions.map(q => {
+            return {
+                savol: q.savol || q["savol"] || q["Savol matni"] || q["Savol"] || "",
+                javob: q.javob || q["To'g'ri javob"] || q["To'g'ri javob "] || q["To‘g‘ri javob"] || q["to'g'ri javob"] || "",
+                xato: Array.isArray(q.xato) ? q.xato : [
+                    q.variant2 || q["variant2"] || q["Variant 2"] || q.xato || q["Variant B"] || q["Xato javob"] || "",
+                    q.variant3 || q["variant3"] || q["Variant 3"] || q["Variant C"] || q["Xato javob2"] || "", 
+                    q.variant4 || q["variant4"] || q["Variant 4"] || q["Variant D"] || q["Xato javob3"] || ""
+                ].filter(opt => opt !== undefined && opt !== null && opt.toString().trim() !== ""),
+                blok: q.FAN || q.fan || q["FAN"] || q["fan"] || q.blok || q["blok"] || q["Fan nomi"] || ""
+            };
+        });
+
+        // Yangi fanlar bo'yicha savollarni saralash (Xavfsiz tekshiruv bilan)
+        let poolMonetar = normalizedQuestions.filter(q => q.blok && q.blok.toLowerCase().includes('monetar'));
+        let poolBank = normalizedQuestions.filter(q => q.blok && (q.blok.toLowerCase().includes('bank ishi') || q.blok.toLowerCase().includes('moliya asoslari')));
+        let poolXalqaro = normalizedQuestions.filter(q => q.blok && (q.blok.toLowerCase().includes('xalqaro') || q.blok.toLowerCase().includes('xalkaro')));
+
+        // Konsolda tekshirish uchun loglar:
+        console.log("Monetar savollar soni:", poolMonetar.length);
+        console.log("Bank ishi savollar soni:", poolBank.length);
+        console.log("Xalqaro moliya savollar soni:", poolXalqaro.length);
+
+        // Savollardan belgilangan miqdorda tasodifiy tanlab olish
+        let selectedMonetar = shuffle(poolMonetar).slice(0, 17);
+        let selectedBank = shuffle(poolBank).slice(0, 17);
+        let selectedXalqaro = shuffle(poolXalqaro).slice(0, 16);
+
+        // Barcha tanlangan savollarni birlashtiramiz
+        let selected = [...selectedMonetar, ...selectedBank, ...selectedXalqaro];
+
+        // Dinamik sarlavhalar uchun chegaralarni aniqlaymiz
+        let limitMonetar = selectedMonetar.length;
+        let limitBank = limitMonetar + selectedBank.length;
+
+        area.innerHTML = selected.map((item, idx) => {
+            const options = shuffle([item.javob, ...item.xato]);
+                        
+            let blockHeader = "";
+            if (idx === 0) blockHeader = `<div class='subject-header'>I. Monetar siyosat (1-${limitMonetar})</div>`;
+            if (idx === limitMonetar && limitBank > limitMonetar) blockHeader = `<div class='subject-header'>II. Bank ishi va moliya asoslari (${limitMonetar + 1}-${limitBank})</div>`;
+            if (idx === limitBank) blockHeader = `<div class='subject-header'>III. Xalqaro moliya va bank ishi (${limitBank + 1}-${selected.length})</div>`;
+
+            return `
+                ${blockHeader}
+                <div class="q-card" data-correct="${item.javob}">
+                    <strong>${idx + 1}. ${item.savol}</strong>
+                    <div class="options">
+                        ${options.map(opt => `
+                            <label>
+                                <input type="radio" name="q${idx}" value="${opt}"> ${opt}
+                            </label>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }).join('');
+                
+        document.getElementById('loader').style.display = 'none';
+        document.getElementById('quiz-container').style.display = 'block';
+    }
+
+    function checkResults() {
+        clearInterval(timerInterval);
+        document.getElementById('top-bar').style.display = 'none';
+        
+        let correctCount = 0;
+        const cards = document.querySelectorAll('.q-card');
+        
+        cards.forEach((card, idx) => {
+            const correct = card.getAttribute('data-correct');
+            const selected = card.querySelector(`input[name="q${idx}"]:checked`);
+            const allLabels = card.querySelectorAll('label');
+            
+            card.querySelectorAll('input').forEach(inp => inp.disabled = true);
+
+            if (selected) {
+                if (selected.value === correct) {
+                    correctCount++;
+                    selected.parentElement.classList.add('correct');
+                } else {
+                    selected.parentElement.classList.add('wrong');
+                    allLabels.forEach(lbl => {
+                        if(lbl.innerText.trim() === correct) lbl.style.border = "2px solid green";
+                    });
+                }
+            }
+        });
+
+        // Ballarni hisoblash
+        const totalScore = correctCount * 2; 
+        const maxScore = cards.length * 2;
+
+        const resArea = document.getElementById('result-area');
+        resArea.style.display = 'block';
+        resArea.innerHTML = `
+            <h2>Test natijalari</h2>
+            <div class="score-big">${totalScore} dan ${maxScore} ball</div>
+            <p>To'g'ri javoblar: ${correctCount} tadan ${cards.length} ta</p>
+            <p>Bajarilish foizi: ${(correctCount/cards.length*100).toFixed(1)}%</p>
+            <button onclick="location.reload()" style="padding:10px 20px; cursor:pointer; margin-top:15px;">Qaytadan topshirish</button>
+        `;
+        
+        document.getElementById('finish-btn').style.display = 'none';
+        window.scrollTo({top: 0, behavior: 'smooth'});
+    }
+
+    loadQuestions();
+</script>
+</body>
+</html>
