@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Talabalar Davomat va Statistika Tizimi</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background: #f4f6f9; margin: 0; padding: 10px; color: #333; }
+        .container { max-width: 1200px; margin: auto; background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        h2, h3 { color: #2c3e50; text-align: center; font-size: 22px; }
+        
+        .nav-tabs { display: flex; gap: 5px; margin-bottom: 15px; border-bottom: 2px solid #ddd; padding-bottom: 10px; overflow-x: auto; }
+        .tab-btn { padding: 8px 15px; font-size: 14px; border: none; background: #e2e8f0; cursor: pointer; border-radius: 5px; font-weight: bold; white-space: nowrap; }
+        .tab-btn.active { background: #34495e; color: #fff; }
+        
+        .section { display: none; }
+        .section.active { display: block; }
+
+        .form-box { background: #f8fafc; padding: 12px; border-radius: 6px; border: 1px solid #cbd5e1; margin-bottom: 15px; display: flex; gap: 10px; flex-direction: column; }
+        @media(min-width: 600px) {
+            .form-box { flex-direction: row; align-items: center; }
+        }
+        input, select, textarea, button { padding: 10px; font-size: 14px; border-radius: 4px; border: 1px solid #ccc; width: 100%; }
+        textarea { resize: vertical; min-height: 80px; }
+        button { background: #27ae60; color: #fff; border: none; font-weight: bold; cursor: pointer; }
+        button:hover { background: #219653; }
+
+        .group-list { display: flex; flex-direction: column; gap: 10px; margin-top: 15px; }
+        .group-item { background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 12px 15px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+        .group-info { cursor: pointer; flex-grow: 1; }
+        .group-info h4 { margin: 0 0 5px 0; color: #2c3e50; font-size: 16px; }
+        .group-info p { margin: 0; color: #555; font-size: 12px; }
+
+        .table-responsive { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; margin-top: 10px; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 500px; }
+        th, td { border: 1px solid #cbd5e1; padding: 6px; text-align: center; vertical-align: middle; }
+        th { background: #34495e; color: #fff; }
+        .stat-table th { background: #1e293b; }
+        
+        .student-info { display: flex; align-items: center; gap: 8px; text-align: left; }
+        .student-info img { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; border: 1px solid #bbb; }
+        
+        .para-cell { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+        .para-btn { width: 32px; height: 32px; font-size: 14px; font-weight: bold; cursor: pointer; border: 1px solid #bbb; background: #e2e8f0; border-radius: 4px; }
+        .para-btn.absent { background: #e74c3c; color: white; border-color: #c0392b; }
+        .para-btn.present { background: #2ecc71; color: white; border-color: #27ae60; }
+        .para-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+        .para-time { font-size: 9px; color: #555; font-weight: bold; }
+        
+        .btn-group { display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap; }
+        .excel-btn { background: #2980b9; width: auto; }
+        .excel-btn:hover { background: #2471a3; }
+        .copy-btn { background: #e67e22; width: auto; }
+        .copy-btn:hover { background: #d35400; }
+        .save-btn { background: #8e44ad; width: auto; }
+        .save-btn:hover { background: #732d91; }
+        .back-btn { background: #64748b; width: auto; }
+        .delete-btn { background: #e74c3c; width: auto; padding: 4px 8px; font-size: 12px; }
+        .delete-btn:hover { background: #c0392b; }
+        .red-bg { background-color: #fee2e2; }
+
+        .student-manage-item, .group-manage-item { display: flex; justify-content: space-between; align-items: center; background: #fff; padding: 8px 12px; border: 1px solid #ddd; margin-bottom: 5px; border-radius: 4px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Talabalar Davomat va Statistika</h2>
+    
+    <div class="nav-tabs">
+        <button class="tab-btn active" onclick="switchTab('davomatTab', this)">Davomat Qilish</button>
+        <button class="tab-btn" onclick="switchTab('statTab', this)">Statistika</button>
+        <button class="tab-btn" onclick="switchTab('manageTab', this)">Guruh/Talaba</button>
+    </div>
+
+    <!-- 1. DAVOMAT BO'LIMI -->
+    <div id="davomatTab" class="section active">
+        <div id="davomatViewContainer"></div>
+    </div>
+
+    <!-- 2. STATISTIKA JADVALI -->
+    <div id="statTab" class="section">
+        <h3>Guruhlar Statistikasi</h3>
+        <div class="table-responsive">
+            <table class="stat-table">
+                <thead>
+                    <tr>
+                        <th>kurs</th>
+                        <th>guruh</th>
+                        <th>talaba</th>
+                        <th>kelgan</th>
+                        <th>kelmagan</th>
+                        <th>dav.%</th>
+                        <th>kel.m.%</th>
+                        <th>kelmagan talabalar FISH:</th>
+                    </tr>
+                </thead>
+                <tbody id="statTableBody"></tbody>
+                <tfoot>
+                    <tr style="font-weight: bold; background: #f1f5f9;">
+                        <td colspan="2">umumiy</td>
+                        <td id="totStudents">0</td>
+                        <td id="totPresent">0</td>
+                        <td id="totAbsent">0</td>
+                        <td id="totPercent" style="background: #2ecc71; color:white;">100.0</td>
+                        <td id="totAbsentPercent" style="background: #e74c3c; color:white;">0.0</td>
+                        <td></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+
+    <!-- 3. GURUH VA TALABA QO'SHISH / O'CHIRISH -->
+    <div id="manageTab" class="section">
+        <h3>Yangi Guruh Qo'shish</h3>
+        <div class="form-box">
+            <input type="text" id="newGroupName" placeholder="Guruh nomi (masalan: IS-21)">
+            <input type="text" id="newGroupCourse" placeholder="Kursi (masalan: 2)">
+            <button onclick="addGroup()">Guruh qo'shish</button>
+        </div>
+
+        <h3>Mavjud Guruhlar (O'chirish uchun)</h3>
+        <div id="manageGroupsContainer" style="background: #f8fafc; padding: 12px; border-radius: 6px; border: 1px solid #cbd5e1; margin-bottom: 15px; max-height: 200px; overflow-y: auto;">
+            <!-- Dinamik to'ldiriladi -->
+        </div>
+
+        <h3>Yangi Talabalar Qo'shish (Har birini yangi qatordan yozing)</h3>
+        <div style="background: #f8fafc; padding: 12px; border-radius: 6px; border: 1px solid #cbd5e1; margin-bottom: 15px; display: flex; gap: 10px; flex-direction: column;">
+            <select id="targetGroupSelect" onchange="renderManageStudentsList()"></select>
+            <textarea id="newStudentsList" placeholder="Aliyev Anvar&#10;Karimov Jasur&#10;Omonova Malika"></textarea>
+            <button onclick="addStudentsBulk()">Talabalarni qo'shish</button>
+        </div>
+
+        <h3>Guruhdagi Talabalar ro'yxati (O'chirish uchun)</h3>
+        <div id="manageStudentsContainer" style="background: #f8fafc; padding: 12px; border-radius: 6px; border: 1px solid #cbd5e1; max-height: 300px; overflow-y: auto;">
+            <!-- Dinamik to'ldiriladi -->
+        </div>
+    </div>
+</div>
+
+<script>
+    let db = JSON.parse(localStorage.getItem('davomat_db')) || {
+        groups: [
+            { id: "g1", name: "IQ-25-30", course: "2" },
+            { id: "g2", name: "ECO24-01", course: "3" }
+        ],
+        students: [
+            { id: "s1", groupId: "g1", name: "Aliyev Anvar", photo: "https://via.placeholder.com/45" },
+            { id: "s2", groupId: "g1", name: "Karimov Jasur", photo: "https://via.placeholder.com/45" },
+            { id: "s3", groupId: "g2", name: "Omonova Malika", photo: "https://via.placeholder.com/45" }
+        ],
+        attendance: {},
+        savedParas: {} 
+    };
+
+    let activeAttendanceGroupId = null;
+
+    function saveData() {
+        localStorage.setItem('davomat_db', JSON.stringify(db));
+    }
+
+    const now = new Date();
+    const dateStr = `${String(now.getDate()).padStart(2, '0')}.${String(now.getMonth() + 1).padStart(2, '0')}.${now.getFullYear()}`;
+
+    function switchTab(tabId, btn) {
+        document.querySelectorAll('.section').forEach(sec => sec.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById(tabId).classList.add('active');
+        btn.classList.add('active');
+        if(tabId === 'statTab') renderStatistics();
+        if(tabId === 'davomatTab') renderDavomatView();
+        if(tabId === 'manageTab') {
+            updateSelects();
+            renderManageGroupsList();
+            renderManageStudentsList();
+        }
+    }
+
+    function updateSelects() {
+        let targetSelect = document.getElementById('targetGroupSelect');
+        let currentSelected = targetSelect.value;
+        targetSelect.innerHTML = '';
+        db.groups.forEach(g => {
+            targetSelect.innerHTML += `<option value="${g.id}">${g.name} (${g.course}-kurs)</option>`;
+        });
+        if(db.groups.some(g => g.id === currentSelected)) {
+            targetSelect.value = currentSelected;
+        }
+    }
+
+    function addGroup() {
+        let name = document.getElementById('newGroupName').value.trim();
+        let course = document.getElementById('newGroupCourse').value.trim();
+        if(!name || !course) { alert("Maydonlarni to'ldiring!"); return; }
+        let id = 'g_' + Date.now();
+        db.groups.push({ id, name, course });
+        saveData();
+        document.getElementById('newGroupName').value = '';
+        document.getElementById('newGroupCourse').value = '';
+        updateSelects();
+        renderManageGroupsList();
+        renderManageStudentsList();
+        alert("Guruh qo'shildi!");
+    }
+
+    function renderManageGroupsList() {
+        let container = document.getElementById('manageGroupsContainer');
+        if(db.groups.length === 0) {
+            container.innerHTML = `<p>Guruhlar mavjud emas.</p>`;
+            return;
+        }
+
+        let html = '';
+        db.groups.forEach((g, index) => {
+            html += `
+                <div class="group-manage-item">
+                    <span>${index + 1}. <b>${g.name}</b> (${g.course}-kurs)</span>
+                    <button class="delete-btn" onclick="deleteGroup('${g.id}')">Guruhni o'chirish</button>
+                </div>
+            `;
+        });
+        container.innerHTML = html;
+    }
+
+    function deleteGroup(groupId) {
+        if(confirm("Diqqat! Guruh o'chirilsa, uning ichidagi barcha talabalar va ularning davomat tarixi ham butunlay o'chib ketadi. Davom etasizmi?")) {
+            // Guruhga tegishli talabalarni topib, ularning attendance'ini ham tozalaymiz
+            let studentIds = db.students.filter(s => s.groupId === groupId).map(s => s.id);
+            studentIds.forEach(sId => delete db.attendance[sId]);
+
+            // Guruh talabalarini o'chiramiz
+            db.students = db.students.filter(s => s.groupId !== groupId);
+            // Guruhni o'chiramiz
+            db.groups = db.groups.filter(g => g.id !== groupId);
+
+            // Agar o'chirilayotgan guruh hozir davomat qilinayotgan bo'lsa, chiqib ketamiz
+            if(activeAttendanceGroupId === groupId) {
+                activeAttendanceGroupId = null;
+            }
+
+            saveData();
+            updateSelects();
+            renderManageGroupsList();
+            renderManageStudentsList();
+            alert("Guruh va unga tegishli ma'lumotlar o'chirildi!");
+        }
+    }
+
+    function addStudentsBulk() {
+        let groupId = document.getElementById('targetGroupSelect').value;
+        let rawText = document.getElementById('newStudentsList').value.trim();
+        
+        if(!groupId) { alert("Avval guruhni tanlang!"); return; }
+        if(!rawText) { alert("Talabalar ro'yxatini kiriting!"); return; }
+
+        let names = rawText.split('\n').map(n => n.trim()).filter(n => n.length > 0);
+        if(names.length === 0) { alert("To'g'ri formatda F.I.O kiriting!"); return; }
+
+        names.forEach((name, index) => {
+            let id = 's_' + Date.now() + '_' + index;
+            db.students.push({ 
+                id: id, 
+                groupId: groupId, 
+                name: name, 
+                photo: 'https://via.placeholder.com/45' 
+            });
+        });
+
+        saveData();
+        document.getElementById('newStudentsList').value = '';
+        renderManageStudentsList();
+        alert(`${names.length} ta talaba muvaffaqiyatli qo'shildi!`);
+    }
+
+    function renderManageStudentsList() {
+        let groupId = document.getElementById('targetGroupSelect').value;
+        let container = document.getElementById('manageStudentsContainer');
+        if(!groupId) {
+            container.innerHTML = `<p>Guruh tanlanmagan.</p>`;
+            return;
+        }
+
+        let groupStudents = db.students.filter(s => s.groupId === groupId);
+        if(groupStudents.length === 0) {
+            container.innerHTML = `<p>Bu guruhda talabalar yo'q.</p>`;
+            return;
+        }
+
+        let html = '';
+        groupStudents.forEach((st, index) => {
+            html += `
+                <div class="student-manage-item">
+                    <span>${index + 1}. ${st.name}</span>
+                    <button class="delete-btn" onclick="deleteStudent('${st.id}')">O'chirish</button>
+                </div>
+            `;
+        });
+        container.innerHTML = html;
+    }
+
+    function deleteStudent(studentId) {
+        if(confirm("Haqiqatan ham bu talabani o'chirmoqchimisiz?")) {
+            db.students = db.students.filter(s => s.id !== studentId);
+            delete db.attendance[studentId];
+            saveData();
+            renderManageStudentsList();
+            alert("Talaba o'chirildi!");
+        }
+    }
+
+    function renderDavomatView() {
+        let container = document.getElementById('davomatViewContainer');
+        
+        if (!activeAttendanceGroupId) {
+            let html = `<h3>Guruhlar ro'yxati</h3>`;
+            html += `<div class="group-list">`;
+            
+            if (db.groups.length === 0) {
+                html += `<p style="text-align:center;">Guruhlar mavjud emas.</p>`;
+            } else {
+                db.groups.forEach(g => {
+                    let studentCount = db.students.filter(s => s.groupId === g.id).length;
+                    let key = `${g.id}_${dateStr}`;
+                    let savedList = (db.savedParas && db.savedParas[key]) ? db.savedParas[key] : [];
+                    let statusText = savedList.length > 0 ? `Saqlangan paralar: ${savedList.join(', ')}` : "Davomat ochiq";
+                    
+                    html += `
+                        <div class="group-item">
+                            <div class="group-info" onclick="selectGroupForAttendance('${g.id}')">
+                                <h4>${g.name} (${g.course}-kurs)</h4>
+                                <p>Talabalar soni: ${studentCount} | <span style="color: #27ae60;">${statusText}</span></p>
+                            </div>
+                            <div style="display: flex; gap: 5px;">
+                                <button class="copy-btn" style="padding: 6px 12px; font-size: 13px; width: auto;" onclick="copyGroupTable('${g.name}')">Nusxalash</button>
+                                <button class="excel-btn" style="padding: 6px 12px; font-size: 13px; width: auto;" onclick="exportToExcel('${g.name}')">Yuklab olish</button>
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+            html += `</div>`;
+            container.innerHTML = html;
+        } else {
+            renderDavomatTable();
+        }
+    }
+
+    function selectGroupForAttendance(groupId) {
+        activeAttendanceGroupId = groupId;
+        renderDavomatTable();
+    }
+
+    function backToGroupList() {
+        activeAttendanceGroupId = null;
+        renderDavomatView();
+    }
+
+    function renderDavomatTable() {
+        let container = document.getElementById('davomatViewContainer');
+        let groupId = activeAttendanceGroupId;
+        let groupStudents = db.students.filter(s => s.groupId === groupId);
+        let groupInfo = db.groups.find(g => g.id === groupId);
+
+        if(!groupInfo) {
+            backToGroupList();
+            return;
+        }
+
+        let key = `${groupId}_${dateStr}`;
+        let savedList = (db.savedParas && db.savedParas[key]) ? db.savedParas[key] : [];
+
+        let html = `
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 5px;">
+                <button class="back-btn" onclick="backToGroupList()">&larr; Orqaga</button>
+                <div style="font-weight: bold; font-size: 13px; color: #555;">${groupInfo.name} | ${dateStr}</div>
+            </div>
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Talaba F.I.O</th>
+                            <th>1-p<br><span style="font-size:9px;">08:30</span></th>
+                            <th>2-p<br><span style="font-size:9px;">10:00</span></th>
+                            <th>3-p<br><span style="font-size:9px;">11:30</span></th>
+                            <th>4-p<br><span style="font-size:9px;">13:30</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>`;
+
+        if(groupStudents.length === 0) {
+            html += `<tr><td colspan="5">Talabalar yo'q.</td></tr>`;
+        } else {
+            groupStudents.forEach(st => {
+                if(!db.attendance[st.id]) {
+                    db.attendance[st.id] = { 1:{s:'+',t:'--:--'}, 2:{s:'+',t:'--:--'}, 3:{s:'+',t:'--:--'}, 4:{s:'+',t:'--:--'} };
+                }
+                let att = db.attendance[st.id];
+
+                html += `<tr>
+                    <td>
+                        <div class="student-info">
+                            <img src="${st.photo}" alt="">
+                            <span style="font-size: 12px;">${st.name}</span>
+                        </div>
+                    </td>`;
+
+                for(let i=1; i<=4; i++) {
+                    let status = att[i].s;
+                    let time = att[i].t;
+                    let btnClass = status === '+' ? 'present' : 'absent';
+                    
+                    let isParaSaved = savedList.includes(i);
+                    let isDisabled = isParaSaved || (i > 1 && att[i-1].t === '--:--') ? 'disabled' : '';
+
+                    html += `<td>
+                        <div class="para-cell">
+                            <button class="para-btn ${btnClass}" ${isDisabled} onclick="toggleAtt('${st.id}', ${i}, this)">${status}</button>
+                            <span class="para-time">${time}</span>
+                        </div>
+                    </td>`;
+                }
+                html += `</tr>`;
+            });
+        }
+        html += `</tbody></table></div>
+            <div class="btn-group">`;
+
+        if(savedList.length < 4) {
+            html += `<button class="save-btn" onclick="saveGroupCurrentData()">Saqlash</button>`;
+        }
+
+        html += `<button class="copy-btn" onclick="copyGroupTable('${groupInfo.name}')">Nusxalash</button>
+                 <button class="excel-btn" onclick="exportToExcel('${groupInfo.name}')">Excelga yuklab olish</button>
+            </div>`;
+        container.innerHTML = html;
+    }
+
+    function toggleAtt(studentId, paraNum, btn) {
+        if(paraNum > 1) {
+            let prevAtt = db.attendance[studentId][paraNum - 1];
+            if(prevAtt.t === '--:--') {
+                alert("Oldingi para belgilanmaguncha keyingisiga o'tib bo'lmaydi!");
+                return;
+            }
+        }
+
+        let att = db.attendance[studentId][paraNum];
+        if(att.s === '+') {
+            att.s = '-';
+            btn.className = 'para-btn absent';
+            btn.innerText = '-';
+        } else {
+            att.s = '+';
+            btn.className = 'para-btn present';
+            btn.innerText = '+';
+        }
+
+        let nowTime = new Date();
+        att.t = String(nowTime.getHours()).padStart(2, '0') + ':' + String(nowTime.getMinutes()).padStart(2, '0');
+        
+        renderDavomatTable();
+    }
+
+    function saveGroupCurrentData() {
+        let groupId = activeAttendanceGroupId;
+        let key = `${groupId}_${dateStr}`;
+        if(!db.savedParas) db.savedParas = {};
+        if(!db.savedParas[key]) db.savedParas[key] = [];
+
+        let groupStudents = db.students.filter(s => s.groupId === groupId);
+        let newlySavedCount = 0;
+
+        for(let i=1; i<=4; i++) {
+            if(!db.savedParas[key].includes(i)) {
+                let hasAnyTime = groupStudents.some(st => {
+                    let att = db.attendance[st.id];
+                    return att && att[i] && att[i].t !== '--:--';
+                });
+
+                if(hasAnyTime) {
+                    groupStudents.forEach(st => {
+                        if(!db.attendance[st.id]) {
+                            db.attendance[st.id] = { 1:{s:'+',t:'--:--'}, 2:{s:'+',t:'--:--'}, 3:{s:'+',t:'--:--'}, 4:{s:'+',t:'--:--'} };
+                        }
+                        if(db.attendance[st.id][i].t === '--:--') {
+                            db.attendance[st.id][i].t = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+                        }
+                    });
+                    db.savedParas[key].push(i);
+                    newlySavedCount++;
+                }
+            }
+        }
+
+        if(newlySavedCount === 0) {
+            alert("Saqlash uchun kamida bitta paraga davomat belgilang!");
+            return;
+        }
+
+        saveData();
+        alert("Davomat muvaffaqiyatli saqlandi!");
+        renderDavomatTable();
+    }
+
+    function copyGroupTable(groupName) {
+        let groupInfo = db.groups.find(g => g.name === groupName);
+        let students = db.students.filter(s => s.groupId === groupInfo.id);
+
+        let textData = `Guruh: ${groupName}\nSana: ${dateStr}\n`;
+        textData += `Talaba F.I.O\t1-para\t2-para\t3-para\t4-para\n`;
+
+        students.forEach((st, index) => {
+            let att = db.attendance[st.id] || { 
+                1: {s: '+', t: '--:--'}, 
+                2: {s: '+', t: '--:--'}, 
+                3: {s: '+', t: '--:--'}, 
+                4: {s: '+', t: '--:--'} 
+            };
+            textData += `${index + 1}. ${st.name}\t${att[1].s}\t${att[2].s}\t${att[3].s}\t${att[4].s}\n`;
+        });
+
+        navigator.clipboard.writeText(textData).then(() => {
+            alert(`"${groupName}" guruhi ma'lumotlari nusxalandi!`);
+        }).catch(err => {
+            alert("Nusxalashda xatolik yuz berdi: " + err);
+        });
+    }
+
+    function renderStatistics() {
+        let tbody = document.getElementById('statTableBody');
+        tbody.innerHTML = '';
+
+        let totalStudentsAll = 0, totalPresentAll = 0, totalAbsentAll = 0;
+
+        db.groups.forEach(g => {
+            let students = db.students.filter(s => s.groupId === g.id);
+            let totalCount = students.length;
+            let presentCount = 0;
+            let absentCount = 0;
+            let absentNames = [];
+
+            students.forEach(st => {
+                let att = db.attendance[st.id];
+                let missedAny = false;
+
+                if(att) {
+                    for(let i = 1; i <= 4; i++) {
+                        if(att[i].s === '-') missedAny = true;
+                    }
+                }
+
+                if(missedAny) {
+                    absentCount++;
+                    absentNames.push(st.name);
+                } else {
+                    presentCount++;
+                }
+            });
+
+            let presentPercent = totalCount > 0 ? ((presentCount / totalCount) * 100).toFixed(1) : "100.0";
+            let absentPercent = totalCount > 0 ? ((absentCount / totalCount) * 100).toFixed(1) : "0.0";
+
+            totalStudentsAll += totalCount;
+            totalPresentAll += presentCount;
+            totalAbsentAll += absentCount;
+
+            tbody.innerHTML += `
+                <tr>
+                    <td>${g.course}</td>
+                    <td>${g.name}</td>
+                    <td>${totalCount}</td>
+                    <td>${presentCount}</td>
+                    <td>${absentCount > 0 ? absentCount : ''}</td>
+                    <td>${presentPercent}</td>
+                    <td class="red-bg">${absentPercent}</td>
+                    <td style="text-align: left; padding-left: 5px; font-size: 12px;">${absentNames.join(', ')}</td>
+                </tr>
+            `;
+        });
+
+        document.getElementById('totStudents').innerText = totalStudentsAll;
+        document.getElementById('totPresent').innerText = totalPresentAll;
+        document.getElementById('totAbsent').innerText = totalAbsentAll > 0 ? totalAbsentAll : '';
+        let totPresPerc = totalStudentsAll > 0 ? ((totalPresentAll / totalStudentsAll) * 100).toFixed(1) : "100.0";
+        let totAbsPerc = totalStudentsAll > 0 ? ((totalAbsentAll / totalStudentsAll) * 100).toFixed(1) : "0.0";
+        document.getElementById('totPercent').innerText = totPresPerc;
+        document.getElementById('totAbsentPercent').innerText = totAbsPerc;
+    }
+
+    function exportToExcel(groupName) {
+        let groupInfo = db.groups.find(g => g.name === groupName);
+        let students = db.students.filter(s => s.groupId === groupInfo.id);
+        
+        let csv = [];
+        csv.push(`Guruh: ${groupName}, Sana: ${dateStr}`);
+        csv.push('"T/r","Talaba F.I.O","1-para","2-para","3-para","4-para"');
+
+        students.forEach((st, index) => {
+            let att = db.attendance[st.id] || { 
+                1:{s:'+', t:'--:--'}, 
+                2:{s:'+', t:'--:--'}, 
+                3:{s:'+', t:'--:--'}, 
+                4:{s:'+', t:'--:--'} 
+            };
+            csv.push(`"${index + 1}","${st.name}","${att[1].s}","${att[2].s}","${att[3].s}","${att[4].s}"`);
+        });
+
+        let csvFile = new Blob(["\uFEFF" + csv.join('\n')], { type: 'text/csv;charset=utf-8;' });
+        let downloadLink = document.createElement('a');
+        downloadLink.download = `Davomat_${groupName}_${dateStr}.csv`;
+        downloadLink.href = window.URL.createObjectURL(csvFile);
+        downloadLink.click();
+    }
+
+    updateSelects();
+    renderManageGroupsList();
+    renderManageStudentsList();
+    renderDavomatView();
+</script>
+
+</body>
+</html>
