@@ -1,0 +1,6 @@
+.env
+*.session
+*.session-journal
+autoreply.json
+venv/
+__pycache__/
