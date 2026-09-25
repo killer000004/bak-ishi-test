@@ -1,0 +1,1113 @@
+<!DOCTYPE html>
+<html lang="uz" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TG Manager Demo</title>
+
+    <script>
+        (function () {
+            const root = document.documentElement;
+            let theme = root.dataset.theme || (window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+            try { theme = localStorage.getItem('tg-theme') || theme; } catch (e) {}
+            document.documentElement.classList.remove('dark', 'light');
+            document.documentElement.classList.add(theme);
+        })();
+    </script>
+
+    <!-- Tailwind CDN faqat development uchun. Production: Tailwind CLI bilan build qiling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        if (window.tailwind) tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: { tg: { blue: '#2AABEE', accent: '#229ED9', hover: '#1d88bc' } },
+                    fontFamily: { sans: ['Inter', 'sans-serif'] }
+                }
+            },
+            plugins: [function ({ addVariant }) { addVariant('light', '.light &'); }]
+        }
+    </script>
+    <style>
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(156,163,175,.3); border-radius: 4px; }
+
+        .glass-panel { background: rgba(30,41,59,.7); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,.08); }
+        .sub-panel   { background: rgba(30,41,59,.45); border: 1px solid rgba(51,65,85,.5); }
+        .field       { background: rgba(15,23,42,.6); border: 1px solid #334155; color: inherit; }
+        .field:focus { outline: none; border-color: #2AABEE; }
+        .field:disabled { opacity: .6; cursor: not-allowed; }
+        .field:invalid:not(:placeholder-shown) { border-color: #f43f5e; }
+        .nav-active  { background: rgba(51,65,85,.5); color: #fff !important; font-weight: 600; }
+        .skeleton    { color: transparent !important; background: rgba(148,163,184,.18); border-radius: 6px; animation: pulse 1.4s ease-in-out infinite; }
+        @keyframes pulse { 50% { opacity: .45; } }
+
+        .light .glass-panel { background: rgba(255,255,255,.85); border-color: rgba(0,0,0,.08); }
+        .light .sub-panel   { background: #f1f5f9; border-color: #e2e8f0; }
+        .light .field       { background: #fff; border-color: #cbd5e1; color: #0f172a; }
+        .light .nav-active  { background: #e2e8f0; color: #0f172a !important; }
+        .light .text-slate-100 { color: #0f172a; }
+        .light .text-slate-300 { color: #475569; }
+        .light .text-slate-400 { color: #64748b; }
+        .light .border-slate-700\/50, .light .border-slate-700\/40, .light .border-slate-700 { border-color: #e2e8f0; }
+    </style>
+</head>
+<body class="h-screen overflow-hidden flex flex-col font-sans transition-colors duration-200 bg-slate-900 text-slate-100 light:bg-slate-50 light:text-slate-800">
+
+    <div id="demo-banner" class="hidden shrink-0 bg-amber-400 text-slate-900 text-xs font-semibold text-center px-4 py-1.5">
+        DEMO: namunaviy ma'lumotlar. Telegram'ga ulanmagan, o'zgarishlar faqat shu sahifada saqlanadi.
+    </div>
+    <header class="bg-slate-800/80 light:bg-white/80 backdrop-blur-md border-b border-slate-700/50 sticky top-0 z-50 px-4 py-3 flex items-center justify-between md:px-6 shrink-0">
+        <div class="flex items-center space-x-3">
+            <button id="mobile-menu-btn" class="md:hidden text-slate-400 hover:text-white light:hover:text-slate-900" aria-label="Menu">
+                <i class="fa-solid fa-bars text-xl"></i>
+            </button>
+            <div class="flex items-center space-x-2">
+                <div class="w-9 h-9 rounded-full bg-tg-blue flex items-center justify-center text-white shadow-lg shadow-tg-blue/30">
+                    <i class="fa-solid fa-paper-plane text-sm"></i>
+                </div>
+                <span class="font-bold text-lg tracking-tight hidden sm:inline-block">Telegram<span class="text-tg-blue">Manager</span></span>
+            </div>
+        </div>
+
+        <div class="flex items-center space-x-4">
+            <button id="theme-toggle" class="p-2 rounded-xl bg-slate-700/50 light:bg-slate-100 text-slate-300 hover:bg-slate-700 light:hover:bg-slate-200 transition-colors" aria-label="Theme">
+                <i class="fa-solid fa-moon dark:hidden"></i>
+                <i class="fa-solid fa-sun hidden dark:inline"></i>
+            </button>
+            <div class="flex items-center space-x-3 pl-3 border-l border-slate-700">
+                <img data-avatar alt="Avatar" class="w-9 h-9 rounded-full object-cover ring-2 ring-tg-blue">
+                <div class="hidden sm:block text-left">
+                    <div class="text-sm font-semibold leading-none flex items-center">
+                        <span data-bind="full_name">—</span>
+                        <i id="header-premium-badge" class="fa-solid fa-star text-amber-400 text-xs ml-1.5 hidden" title="Telegram Premium"></i>
+                    </div>
+                    <span data-bind="at_username" class="text-xs text-slate-400">—</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="flex flex-1 min-h-0">
+        <aside id="sidebar" class="fixed inset-y-0 left-0 z-40 w-64 bg-slate-800 light:bg-white border-r border-slate-700/50 transform -translate-x-full md:translate-x-0 transition-transform duration-200 md:static flex flex-col justify-between pt-16 md:pt-0 overflow-y-auto shrink-0">
+            <nav class="p-4 space-y-1">
+                <div class="px-3 py-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">Menyu</div>
+                <a href="#dashboard" class="nav-link flex items-center space-x-3 px-3 py-2.5 rounded-xl text-slate-300 hover:bg-slate-700/50 light:hover:bg-slate-100 text-sm font-medium">
+                    <i class="fa-solid fa-chart-pie w-5 text-center text-tg-blue"></i><span>Boshqaruv Paneli</span>
+                </a>
+                <a href="#profile" class="nav-link flex items-center space-x-3 px-3 py-2.5 rounded-xl text-slate-300 hover:bg-slate-700/50 light:hover:bg-slate-100 text-sm font-medium">
+                    <i class="fa-solid fa-user-gear w-5 text-center text-emerald-400"></i><span>Profil & Bio</span>
+                </a>
+                <a href="#sessions" class="nav-link flex items-center space-x-3 px-3 py-2.5 rounded-xl text-slate-300 hover:bg-slate-700/50 light:hover:bg-slate-100 text-sm font-medium">
+                    <i class="fa-solid fa-shield-halved w-5 text-center text-amber-400"></i><span>Seanslar & Xavfsizlik</span>
+                    <span id="sessions-badge" class="ml-auto bg-amber-500/20 text-amber-500 text-xs px-2 py-0.5 rounded-full font-bold hidden">0</span>
+                </a>
+                <a href="#autoresponder" class="nav-link flex items-center space-x-3 px-3 py-2.5 rounded-xl text-slate-300 hover:bg-slate-700/50 light:hover:bg-slate-100 text-sm font-medium">
+                    <i class="fa-solid fa-robot w-5 text-center text-purple-400"></i><span>Avto-Javob</span>
+                </a>
+                <a href="#analytics" class="nav-link flex items-center space-x-3 px-3 py-2.5 rounded-xl text-slate-300 hover:bg-slate-700/50 light:hover:bg-slate-100 text-sm font-medium">
+                    <i class="fa-solid fa-chart-line w-5 text-center text-rose-400"></i><span>Tahlil & Statistika</span>
+                </a>
+                <a href="#settings" class="nav-link flex items-center space-x-3 px-3 py-2.5 rounded-xl text-slate-300 hover:bg-slate-700/50 light:hover:bg-slate-100 text-sm font-medium">
+                    <i class="fa-solid fa-sliders w-5 text-center text-cyan-400"></i><span>Tizim Sozlamalari</span>
+                </a>
+            </nav>
+            <div class="p-4 m-3 sub-panel rounded-2xl">
+                <div class="flex items-center space-x-3">
+                    <div data-status-dot class="w-3 h-3 rounded-full bg-amber-500 shrink-0"></div>
+                    <div class="min-w-0">
+                        <div class="text-xs font-semibold">Backend (Userbot)</div>
+                        <div data-status-text class="text-[11px] text-slate-400 truncate">Ulanmagan</div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <div id="sidebar-overlay" class="fixed inset-0 bg-black/50 z-30 hidden md:hidden"></div>
+
+        <main class="flex-1 overflow-y-auto p-4 md:p-8 space-y-8">
+
+            <!-- ============ DASHBOARD ============ -->
+            <section id="section-dashboard" class="space-y-6">
+                <div class="relative overflow-hidden rounded-3xl bg-gradient-to-r from-tg-blue to-indigo-600 p-6 md:p-8 text-white shadow-xl">
+                    <div class="relative z-10 space-y-2">
+                        <span class="px-3 py-1 bg-white/20 rounded-full text-xs font-medium">MTProto userbot</span>
+                        <h1 class="text-2xl md:text-3xl font-bold">Xush kelibsiz, <span data-bind="first_name">…</span>! 👋</h1>
+                        <p class="text-white/80 max-w-xl text-sm md:text-base">Barcha raqamlar Telegram akkauntingizdan to'g'ridan-to'g'ri olinadi.</p>
+                    </div>
+                    <i class="fa-solid fa-paper-plane absolute -bottom-6 -right-6 text-9xl text-white/10 rotate-12 pointer-events-none"></i>
+                </div>
+
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                    <p id="stats-note" class="text-xs text-slate-400">Statistika yuklanmagan</p>
+                    <button id="refresh-stats-btn" class="px-3 py-1.5 sub-panel rounded-xl text-xs font-semibold hover:opacity-80 disabled:opacity-50 flex items-center space-x-2">
+                        <i class="fa-solid fa-rotate"></i><span>Yangilash</span>
+                    </button>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div class="glass-panel p-5 rounded-2xl flex items-center justify-between">
+                        <div>
+                            <p class="text-xs text-slate-400 font-medium">Kontaktlar</p>
+                            <h3 id="stat-contacts" class="stat text-2xl font-bold mt-1 text-slate-100">—</h3>
+                            <span id="stat-contacts-sub" class="stat text-xs text-slate-400 mt-1 inline-block">—</span>
+                        </div>
+                        <div class="w-12 h-12 rounded-2xl bg-blue-500/10 text-tg-blue flex items-center justify-center text-xl"><i class="fa-solid fa-address-book"></i></div>
+                    </div>
+                    <div class="glass-panel p-5 rounded-2xl flex items-center justify-between">
+                        <div>
+                            <p class="text-xs text-slate-400 font-medium">Faol chatlar (7 kun)</p>
+                            <h3 id="stat-active" class="stat text-2xl font-bold mt-1 text-slate-100">—</h3>
+                            <span id="stat-active-sub" class="stat text-xs text-slate-400 mt-1 inline-block">—</span>
+                        </div>
+                        <div class="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center text-xl"><i class="fa-solid fa-comments"></i></div>
+                    </div>
+                    <div class="glass-panel p-5 rounded-2xl flex items-center justify-between">
+                        <div>
+                            <p class="text-xs text-slate-400 font-medium">Boshqarilayotgan kanallar</p>
+                            <h3 id="stat-channels" class="stat text-2xl font-bold mt-1 text-slate-100">—</h3>
+                            <span id="stat-channels-sub" class="stat text-xs text-slate-400 mt-1 inline-block">—</span>
+                        </div>
+                        <div class="w-12 h-12 rounded-2xl bg-purple-500/10 text-purple-500 flex items-center justify-center text-xl"><i class="fa-solid fa-bullhorn"></i></div>
+                    </div>
+                    <div class="glass-panel p-5 rounded-2xl flex items-center justify-between">
+                        <div>
+                            <p class="text-xs text-slate-400 font-medium">Saved Messages</p>
+                            <h3 id="stat-saved" class="stat text-2xl font-bold mt-1 text-slate-100">—</h3>
+                            <span id="stat-saved-sub" class="stat text-xs text-slate-400 mt-1 inline-block">—</span>
+                        </div>
+                        <div class="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center text-xl"><i class="fa-solid fa-bookmark"></i></div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="lg:col-span-2 glass-panel p-6 rounded-3xl">
+                        <div class="mb-4">
+                            <h3 class="text-lg font-bold">Yuborilgan xabarlar</h3>
+                            <p class="text-xs text-slate-400">Oxirgi 7 kun • shaxsiy chatlar va guruhlar</p>
+                        </div>
+                        <div class="h-64 relative"><canvas id="dashActivityChart"></canvas></div>
+                    </div>
+
+                    <div class="glass-panel p-6 rounded-3xl flex flex-col justify-between">
+                        <div>
+                            <h3 class="text-lg font-bold mb-4">Profil qisqacha</h3>
+                            <div class="text-center p-4 sub-panel rounded-2xl mb-4">
+                                <img data-avatar alt="Avatar" class="w-20 h-20 rounded-full mx-auto object-cover ring-4 ring-tg-blue/30 mb-3">
+                                <h4 data-bind="full_name" class="font-bold text-lg">—</h4>
+                                <p data-bind="at_username" class="text-sm text-tg-blue">—</p>
+                                <span id="dash-2fa" class="inline-flex items-center mt-2 px-3 py-1 rounded-full text-xs font-semibold sub-panel text-slate-400">2FA: —</span>
+                            </div>
+                            <div class="space-y-2 text-xs">
+                                <div class="flex justify-between py-1.5 border-b border-slate-700/40">
+                                    <span class="text-slate-400">Telefon:</span><span data-bind="phone" class="font-mono font-medium">—</span>
+                                </div>
+                                <div class="flex justify-between py-1.5 border-b border-slate-700/40">
+                                    <span class="text-slate-400">User ID:</span><span data-bind="id" class="font-mono font-medium">—</span>
+                                </div>
+                                <div class="flex justify-between py-1.5">
+                                    <span class="text-slate-400">Telegram Premium:</span><span data-bind="premium_text" class="font-semibold text-tg-blue">—</span>
+                                </div>
+                            </div>
+                        </div>
+                        <a href="#profile" class="w-full mt-4 py-2.5 sub-panel hover:opacity-80 text-center text-sm font-semibold rounded-xl block">Profil sozlamalari</a>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ============ PROFILE ============ -->
+            <section id="section-profile" class="space-y-6 hidden">
+                <div>
+                    <h2 class="text-2xl font-bold">Profil & Bio</h2>
+                    <p class="text-sm text-slate-400">O'zgarishlar to'g'ridan-to'g'ri Telegram akkauntingizga yoziladi</p>
+                </div>
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="glass-panel p-6 rounded-3xl text-center space-y-4">
+                        <div class="relative w-32 h-32 mx-auto">
+                            <img data-avatar alt="Avatar" class="w-full h-full rounded-full object-cover ring-4 ring-tg-blue/40">
+                            <label for="avatar-file-input" class="absolute bottom-0 right-0 w-10 h-10 bg-tg-blue hover:bg-tg-hover text-white rounded-full flex items-center justify-center cursor-pointer shadow-lg" title="Yangi rasm yuklash">
+                                <i class="fa-solid fa-camera"></i>
+                            </label>
+                            <input type="file" id="avatar-file-input" class="hidden" accept="image/jpeg,image/png">
+                        </div>
+                        <div>
+                            <h3 data-bind="full_name" class="font-bold text-xl break-words">—</h3>
+                            <p data-bind="at_username" class="text-sm text-tg-blue font-medium">—</p>
+                        </div>
+                        <div class="p-3 sub-panel rounded-2xl text-left">
+                            <p class="text-xs text-slate-400 font-medium mb-1">Bio ko'rinishi:</p>
+                            <p id="preview-bio-text" class="text-sm italic text-slate-300 break-words">—</p>
+                        </div>
+                        <div class="flex items-center justify-between p-3 sub-panel rounded-2xl">
+                            <div class="flex items-center space-x-2"><i class="fa-solid fa-star text-amber-400"></i><span class="text-xs font-semibold">Telegram Premium</span></div>
+                            <span data-bind="premium_text" class="text-xs font-bold px-2.5 py-1 rounded-full bg-amber-500/15 text-amber-500">—</span>
+                        </div>
+                    </div>
+
+                    <div class="lg:col-span-2 glass-panel p-6 rounded-3xl space-y-5">
+                        <form id="profile-form" class="space-y-4" novalidate>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label for="input-first-name" class="block text-xs font-semibold text-slate-300 mb-1">Ism (First Name) *</label>
+                                    <input type="text" id="input-first-name" required maxlength="64" placeholder=" " class="field w-full rounded-xl px-4 py-2.5 text-sm">
+                                </div>
+                                <div>
+                                    <label for="input-last-name" class="block text-xs font-semibold text-slate-300 mb-1">Familiya (Last Name)</label>
+                                    <input type="text" id="input-last-name" maxlength="64" placeholder=" " class="field w-full rounded-xl px-4 py-2.5 text-sm">
+                                </div>
+                            </div>
+                            <div>
+                                <label for="input-username" class="block text-xs font-semibold text-slate-300 mb-1">Username</label>
+                                <div class="relative">
+                                    <span class="absolute left-4 top-2.5 text-slate-400 font-medium">@</span>
+                                    <input type="text" id="input-username" maxlength="32" placeholder=" " pattern="^[a-zA-Z][a-zA-Z0-9_]{3,30}[a-zA-Z0-9]$" class="field w-full rounded-xl pl-8 pr-4 py-2.5 text-sm">
+                                </div>
+                                <p id="username-error" class="text-xs text-rose-500 mt-1 hidden"></p>
+                            </div>
+                            <div>
+                                <div class="flex justify-between items-center mb-1">
+                                    <label for="input-bio" class="block text-xs font-semibold text-slate-300">Bio</label>
+                                    <span id="bio-counter" class="text-xs text-slate-400"></span>
+                                </div>
+                                <textarea id="input-bio" rows="3" maxlength="70" class="field w-full rounded-xl p-4 text-sm resize-none"></textarea>
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-400 mb-1">Telefon raqam</label>
+                                    <input type="text" id="field-phone" disabled class="field w-full rounded-xl px-4 py-2.5 text-sm">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-400 mb-1">User ID</label>
+                                    <input type="text" id="field-id" disabled class="field w-full rounded-xl px-4 py-2.5 text-sm">
+                                </div>
+                            </div>
+                            <div class="pt-4 flex justify-end">
+                                <button type="submit" id="profile-save-btn" class="px-6 py-2.5 bg-tg-blue hover:bg-tg-hover disabled:opacity-60 text-white text-sm font-semibold rounded-xl shadow-lg shadow-tg-blue/20 flex items-center space-x-2">
+                                    <i class="fa-solid fa-floppy-disk"></i><span>Telegram'ga saqlash</span>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ============ SESSIONS ============ -->
+            <section id="section-sessions" class="space-y-6 hidden">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                        <h2 class="text-2xl font-bold">Faol seanslar & Xavfsizlik</h2>
+                        <p class="text-sm text-slate-400">Akkauntingizga ulangan barcha qurilmalar (Telegram'dan real vaqtda)</p>
+                    </div>
+                    <div class="flex gap-2 self-start sm:self-auto">
+                        <button id="reload-sessions-btn" class="px-3 py-2.5 sub-panel rounded-xl text-sm hover:opacity-80" title="Yangilash" aria-label="Yangilash"><i class="fa-solid fa-rotate"></i></button>
+                        <button id="terminate-all-btn" class="px-4 py-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 border border-rose-500/30 rounded-xl text-sm font-semibold flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                            <i class="fa-solid fa-power-off"></i><span>Boshqa seanslarni yakunlash</span>
+                        </button>
+                    </div>
+                </div>
+                <div id="current-session-container"></div>
+                <div id="other-sessions-container" class="space-y-3">
+                    <p class="text-sm text-slate-400">Yuklanmagan</p>
+                </div>
+            </section>
+
+            <!-- ============ AUTO-RESPONDER ============ -->
+            <section id="section-autoresponder" class="space-y-6 hidden">
+                <div>
+                    <h2 class="text-2xl font-bold">Avto-Javob</h2>
+                    <p class="text-sm text-slate-400">Shaxsiy chatlarda avtomatik javob</p>
+                </div>
+                <div class="p-4 rounded-2xl border border-amber-500/40 bg-amber-500/10 flex items-start space-x-3">
+                    <i class="fa-solid fa-triangle-exclamation text-amber-500 mt-0.5"></i>
+                    <div class="text-sm">
+                        <p class="font-semibold text-amber-500">Diqqat: akkaunt bloklanishi mumkin</p>
+                        <p class="text-slate-300 text-xs mt-1">Userbot orqali avto-javob Telegram tomonidan spam deb baholanishi mumkin, ayniqsa noma'lum odamlarga. Premium bo'lsa, xavfsizroq yo'l: <b>Settings &gt; Telegram Business &gt; Away Messages</b>.</p>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="glass-panel p-6 rounded-3xl space-y-5">
+                        <h3 class="font-bold text-lg mb-2">Rejimlar</h3>
+                        <div class="flex items-center justify-between p-3.5 sub-panel rounded-2xl">
+                            <div>
+                                <h4 class="text-sm font-semibold">Avto-javob</h4>
+                                <p class="text-xs text-slate-400">Har bir odamga 12 soatda 1 marta</p>
+                            </div>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="auto-reply-toggle" class="sr-only peer">
+                                <div class="w-11 h-6 bg-slate-600 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-500"></div>
+                            </label>
+                        </div>
+                        <div class="flex items-center justify-between p-3.5 sub-panel rounded-2xl">
+                            <div>
+                                <h4 class="text-sm font-semibold">Faqat kontaktlarga</h4>
+                                <p class="text-xs text-slate-400">Noma'lum odamlarga javob bermaydi (tavsiya)</p>
+                            </div>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="contacts-only-toggle" class="sr-only peer" checked>
+                                <div class="w-11 h-6 bg-slate-600 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-500"></div>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="lg:col-span-2 glass-panel p-6 rounded-3xl space-y-4">
+                        <h3 class="font-bold text-lg">Javob matni</h3>
+                        <textarea id="auto-reply-text" rows="5" maxlength="4096" class="field w-full rounded-xl p-4 text-sm leading-relaxed"></textarea>
+                        <div class="space-y-2">
+                            <span class="block text-xs font-semibold text-slate-300">O'zgaruvchilar (kursor turgan joyga qo'yiladi):</span>
+                            <div class="flex flex-wrap gap-2 text-xs">
+                                <button type="button" class="variable-btn px-3 py-1 sub-panel hover:opacity-80 rounded-lg text-purple-500" data-var="{first_name}">{first_name}</button>
+                                <button type="button" class="variable-btn px-3 py-1 sub-panel hover:opacity-80 rounded-lg text-purple-500" data-var="{time}">{time}</button>
+                            </div>
+                        </div>
+                        <div class="pt-3 flex justify-end">
+                            <button id="save-autoresponder-btn" class="px-6 py-2.5 bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold rounded-xl flex items-center space-x-2">
+                                <i class="fa-solid fa-check"></i><span>Saqlash</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ============ ANALYTICS ============ -->
+            <section id="section-analytics" class="space-y-6 hidden">
+                <div>
+                    <h2 class="text-2xl font-bold">Tahlil & Statistika</h2>
+                    <p class="text-sm text-slate-400">Chatlaringiz tarkibi va oxirgi 7 kundagi faollik</p>
+                </div>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div class="glass-panel p-6 rounded-3xl space-y-4">
+                        <h3 class="font-bold text-lg">Chatlar turi</h3>
+                        <div class="h-64 relative"><canvas id="chatsPieChart"></canvas></div>
+                    </div>
+                    <div class="glass-panel p-6 rounded-3xl space-y-4">
+                        <div>
+                            <h3 class="font-bold text-lg">Soatlar bo'yicha xabarlar</h3>
+                            <p class="text-xs text-slate-400">Kiruvchi: shaxsiy chatlar • Chiquvchi: shaxsiy chatlar + guruhlar</p>
+                        </div>
+                        <div class="h-64 relative"><canvas id="hourlyBarChart"></canvas></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ============ SETTINGS ============ -->
+            <section id="section-settings" class="space-y-6 hidden">
+                <div>
+                    <h2 class="text-2xl font-bold">Tizim Sozlamalari</h2>
+                    <p class="text-sm text-slate-400">Backend'ga ulanish</p>
+                </div>
+                <form id="settings-form" class="glass-panel p-6 rounded-3xl max-w-2xl space-y-4">
+                    <div>
+                        <label for="api-base-input" class="block text-xs font-semibold text-slate-300 mb-1">Backend URL</label>
+                        <input type="url" id="api-base-input" placeholder=" " class="field w-full rounded-xl px-4 py-2.5 text-sm">
+                    </div>
+                    <div>
+                        <label for="api-token-input" class="block text-xs font-semibold text-slate-300 mb-1">Access token (.env dagi ADMIN_TOKEN)</label>
+                        <input type="password" id="api-token-input" autocomplete="off" placeholder=" " class="field w-full rounded-xl px-4 py-2.5 text-sm">
+                    </div>
+                    <div class="flex items-center justify-between p-3.5 sub-panel rounded-2xl">
+                        <div class="min-w-0">
+                            <h4 class="text-sm font-semibold">Holat</h4>
+                            <p data-status-text class="text-xs text-slate-400 truncate">Ulanmagan</p>
+                        </div>
+                        <span data-status-dot class="w-3 h-3 rounded-full bg-amber-500 shrink-0"></span>
+                    </div>
+                    <div class="p-3.5 rounded-2xl border border-cyan-500/30 bg-cyan-500/10 text-xs text-slate-300 flex items-start space-x-2">
+                        <i class="fa-solid fa-lock text-cyan-500 mt-0.5"></i>
+                        <span>API ID, API Hash va .session fayli faqat serverda turadi. Token shu brauzerda saqlanadi, shuning uchun panelni begona kompyuterda ochmang.</span>
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                        <button type="submit" class="px-5 py-2.5 bg-tg-blue hover:bg-tg-hover text-white font-semibold rounded-xl text-sm flex items-center space-x-2">
+                            <i class="fa-solid fa-plug"></i><span>Saqlash va ulanish</span>
+                        </button>
+                        <button type="button" id="logout-btn" class="px-5 py-2.5 sub-panel hover:opacity-80 font-semibold rounded-xl text-sm">Tokenni o'chirish</button>
+                    </div>
+                </form>
+            </section>
+        </main>
+    </div>
+
+    <!-- Tasdiqlash oynasi (brauzerning confirm() o'rniga) -->
+    <div id="confirm-modal" class="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center hidden p-4" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+        <div class="glass-panel !bg-slate-800 light:!bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4">
+            <div id="confirm-icon" class="w-12 h-12 rounded-2xl bg-rose-500/10 text-rose-500 flex items-center justify-center text-2xl mx-auto"><i class="fa-solid fa-triangle-exclamation"></i></div>
+            <div class="text-center space-y-2">
+                <h3 id="confirm-title" class="text-lg font-bold"></h3>
+                <p id="confirm-text" class="text-xs text-slate-400"></p>
+            </div>
+            <div class="flex space-x-3 pt-2">
+                <button id="confirm-cancel" class="flex-1 py-2.5 sub-panel hover:opacity-80 rounded-xl text-sm font-semibold">Bekor qilish</button>
+                <button id="confirm-ok" class="flex-1 py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-sm font-semibold">Ha</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast-container" class="fixed bottom-5 right-5 z-[70] flex flex-col space-y-2 pointer-events-none"></div>
+
+    <script>window.TG_DEMO = true;</script>
+    <script>
+        // ============================================================ utils
+        const $ = (id) => document.getElementById(id);
+        const $$ = (sel) => document.querySelectorAll(sel);
+        const fmt = (n) => Number(n ?? 0).toLocaleString('ru-RU');
+
+        const store = {
+            get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+            set(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (e) {} }
+        };
+
+        function el(tag, className, text) {
+            const node = document.createElement(tag);
+            if (className) node.className = className;
+            if (text != null) node.textContent = text; // XSS'dan himoya: doim textContent
+            return node;
+        }
+
+        // Sahifa ichidagi tasdiqlash oynasi. Promise<boolean> qaytaradi
+        function askConfirm({ title, text, ok = 'Ha', danger = true }) {
+            const modal = $('confirm-modal');
+            $('confirm-title').textContent = title;
+            $('confirm-text').textContent = text;
+            const okBtn = $('confirm-ok');
+            okBtn.textContent = ok;
+            okBtn.className = 'flex-1 py-2.5 text-white rounded-xl text-sm font-semibold ' +
+                (danger ? 'bg-rose-600 hover:bg-rose-500' : 'bg-tg-blue hover:bg-tg-hover');
+            modal.classList.remove('hidden');
+            okBtn.focus();
+            return new Promise((resolve) => {
+                const done = (value) => {
+                    modal.classList.add('hidden');
+                    okBtn.onclick = $('confirm-cancel').onclick = modal.onclick = document.onkeydown = null;
+                    resolve(value);
+                };
+                okBtn.onclick = () => done(true);
+                $('confirm-cancel').onclick = () => done(false);
+                modal.onclick = (e) => { if (e.target === modal) done(false); };
+                document.onkeydown = (e) => { if (e.key === 'Escape') done(false); };
+            });
+        }
+
+        const PLACEHOLDER_AVATAR = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" fill="#2AABEE"/>' +
+            '<circle cx="32" cy="25" r="11" fill="#fff" opacity=".9"/><path d="M12 56c3-11 11-16 20-16s17 5 20 16" fill="#fff" opacity=".9"/></svg>');
+
+        const DEFAULT_API = location.protocol.startsWith('http') ? location.origin + '/api' : 'http://127.0.0.1:8000/api';
+        const apiBase = () => (store.get('tg-api') || DEFAULT_API).replace(/\/+$/, '');
+
+        const state = { me: null, connected: false, avatarUrl: null };
+        const BIO_LIMIT = () => (state.me?.premium ? 140 : 70);
+
+        // ============================================================ API
+        class ApiError extends Error {
+            constructor(message, status) { super(message); this.status = status; }
+        }
+
+        async function api(path, { method = 'GET', json, form } = {}) {
+            if (DEMO) return demoApi(path, { method, json, form });
+            const token = store.get('tg-token');
+            if (!token) throw new ApiError('Token kiritilmagan', 401);
+            const headers = { Authorization: 'Bearer ' + token };
+            let body;
+            if (json !== undefined) { headers['Content-Type'] = 'application/json'; body = JSON.stringify(json); }
+            if (form) body = form;
+
+            let res;
+            try {
+                res = await fetch(apiBase() + path, { method, headers, body });
+            } catch (e) {
+                throw new ApiError("Backendga ulanib bo'lmadi", 0);
+            }
+            if (!res.ok) {
+                let detail = `HTTP ${res.status}`;
+                try {
+                    const d = await res.json();
+                    if (typeof d.detail === 'string') detail = d.detail;
+                    else if (Array.isArray(d.detail)) detail = d.detail.map(x => x.msg).join('; ');
+                } catch (e) {}
+                if (res.status === 401) setConnection(false, "Token noto'g'ri");
+                throw new ApiError(detail, res.status);
+            }
+            const type = res.headers.get('content-type') || '';
+            return type.includes('application/json') ? res.json() : res.blob();
+        }
+
+        // ============================================================ DEMO rejim
+        // window.TG_DEMO = true bo'lsa, backend o'rniga namunaviy ma'lumotlar ishlatiladi
+        const DEMO = window.TG_DEMO === true;
+
+        const demoDb = (() => {
+            const now = Date.now(), min = 60e3, hour = 36e5, day = 864e5;
+            const iso = (t) => new Date(t).toISOString();
+            const days = [];
+            for (let i = 6; i >= 0; i--) {
+                const d = new Date(now - i * day);
+                days.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
+            }
+            return {
+                me: { id: 5120334871, first_name: 'Aziz', last_name: 'Karimov', username: 'aziz_dev',
+                      bio: 'Backend developer • Python, FastAPI', phone: '+998 *******47',
+                      premium: true, has_photo: false, two_fa: true },
+                photo: null,
+                autoreply: { enabled: false, contacts_only: true, cooldown_hours: 12,
+                             text: "Assalomu alaykum, {first_name}! Hozir bandman, soat {time} dan keyin javob beraman." },
+                sessions: [
+                    { hash: '0', current: true, device: 'TG Manager', platform: 'Linux', system: 'Ubuntu 24.04', app: 'Telethon 1.45', official: false, ip: '10.0.0.15', location: 'Tashkent, Uzbekistan', active_at: iso(now) },
+                    { hash: '7340019284561203344', current: false, device: 'iPhone 15 Pro', platform: 'iOS', system: '18.1', app: 'Telegram iOS 11.2', official: true, ip: '213.230.87.14', location: 'Tashkent, Uzbekistan', active_at: iso(now - 12 * min) },
+                    { hash: '5521937406618829071', current: false, device: 'Telegram Desktop', platform: 'Windows', system: '11', app: 'Telegram Desktop 5.6', official: true, ip: '84.54.72.201', location: 'Tashkent, Uzbekistan', active_at: iso(now - 3 * hour) },
+                    { hash: '2918374650192837465', current: false, device: 'Chrome 129', platform: 'Web', system: 'macOS', app: 'Telegram Web K 2.1', official: true, ip: '188.113.200.9', location: 'Samarkand, Uzbekistan', active_at: iso(now - 2 * day) }
+                ],
+                stats: {
+                    contacts: 347, dialogs: { private: 128, groups: 23, channels: 31, bots: 14 }, dialogs_total: 196,
+                    active_chats_7d: 42, unread_chats: 7, unread_messages: 63,
+                    managed_channels: 2, managed_subscribers: 4812, saved_messages: 1294, saved_files: 386,
+                    activity: { days, sent: [84, 112, 97, 143, 121, 58, 76] },
+                    hourly: {
+                        incoming: [6, 3, 1, 0, 0, 1, 4, 12, 25, 38, 44, 41, 33, 36, 40, 37, 31, 29, 34, 42, 47, 39, 24, 12],
+                        outgoing: [4, 1, 0, 0, 0, 0, 2, 8, 19, 31, 39, 35, 22, 28, 33, 30, 26, 21, 27, 36, 41, 30, 17, 8]
+                    },
+                    truncated: false, generated_at: iso(now)
+                }
+            };
+        })();
+
+        async function demoApi(path, { method, json, form }) {
+            await new Promise(r => setTimeout(r, 350));
+            const db = demoDb;
+            if (path === '/health') return { ok: true, label: '@' + db.me.username };
+            if (path === '/me') return { ...db.me };
+            if (path === '/me/photo') {
+                if (method === 'POST') { db.photo = form.get('file'); db.me.has_photo = true; return { ok: true }; }
+                if (!db.photo) throw new ApiError("Profil rasmi yo'q", 404);
+                return db.photo;
+            }
+            if (path === '/profile') {
+                const limit = db.me.premium ? 140 : 70;
+                if (json.bio.length > limit) throw new ApiError(`Bio ${limit} belgidan oshmasin`, 400);
+                if (json.username.toLowerCase() === 'admin') throw new ApiError('Bu username band', 400);
+                Object.assign(db.me, { first_name: json.first_name, last_name: json.last_name, username: json.username, bio: json.bio });
+                return { ...db.me };
+            }
+            if (path.startsWith('/stats')) return { ...db.stats, generated_at: new Date().toISOString() };
+            if (path === '/sessions') return db.sessions.map(s => ({ ...s }));
+            if (path === '/sessions/others') { db.sessions = db.sessions.filter(s => s.current); return { ok: true }; }
+            if (path.startsWith('/sessions/')) {
+                const hash = decodeURIComponent(path.split('/')[2]);
+                db.sessions = db.sessions.filter(s => s.hash !== hash);
+                return { ok: true };
+            }
+            if (path === '/autoreply') {
+                if (method === 'PUT') Object.assign(db.autoreply, json);
+                return { ...db.autoreply };
+            }
+            throw new ApiError('Topilmadi', 404);
+        }
+
+        // ============================================================ ulanish
+        function setConnection(ok, text) {
+            state.connected = ok === true;
+            const color = ok === true ? 'bg-emerald-500' : ok === false ? 'bg-rose-500' : 'bg-amber-500';
+            $$('[data-status-dot]').forEach(d => {
+                d.classList.remove('bg-emerald-500', 'bg-rose-500', 'bg-amber-500');
+                d.classList.add(color);
+            });
+            $$('[data-status-text]').forEach(t => t.textContent = text);
+        }
+
+        async function connect() {
+            if (!DEMO && !store.get('tg-token')) {
+                setConnection(null, 'Token kiritilmagan');
+                return false;
+            }
+            setConnection(null, 'Ulanmoqda...');
+            try {
+                const h = await api('/health');
+                setConnection(true, 'Ulangan: ' + h.label);
+            } catch (e) {
+                setConnection(false, e.message);
+                showToast(e.message, 'error');
+                return false;
+            }
+            await Promise.all([loadMe(), loadStats(), loadSessions(), loadAutoreply()]);
+            return true;
+        }
+
+        // ============================================================ profil
+        function setAvatar(url) {
+            if (state.avatarUrl && state.avatarUrl.startsWith('blob:')) URL.revokeObjectURL(state.avatarUrl);
+            state.avatarUrl = url;
+            $$('[data-avatar]').forEach(img => img.src = url);
+        }
+
+        async function loadAvatar() {
+            if (!state.me?.has_photo) return setAvatar(PLACEHOLDER_AVATAR);
+            try {
+                const blob = await api('/me/photo');
+                setAvatar(URL.createObjectURL(blob));
+            } catch (e) {
+                setAvatar(PLACEHOLDER_AVATAR);
+            }
+        }
+
+        function applyMe(me) {
+            state.me = me;
+            const binds = {
+                full_name: `${me.first_name} ${me.last_name}`.trim(),
+                first_name: me.first_name,
+                at_username: me.username ? '@' + me.username : "username yo'q",
+                phone: me.phone || '—',
+                id: String(me.id),
+                premium_text: me.premium ? 'Faol' : 'Nofaol'
+            };
+            $$('[data-bind]').forEach(node => {
+                const v = binds[node.dataset.bind];
+                if (v !== undefined) node.textContent = v;
+            });
+            $('header-premium-badge').classList.toggle('hidden', !me.premium);
+
+            const tfa = $('dash-2fa');
+            tfa.textContent = me.two_fa ? '2FA yoqilgan' : "2FA o'chiq — yoqing!";
+            tfa.className = 'inline-flex items-center mt-2 px-3 py-1 rounded-full text-xs font-semibold border ' +
+                (me.two_fa ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 'bg-rose-500/10 text-rose-500 border-rose-500/30');
+
+            $('input-first-name').value = me.first_name;
+            $('input-last-name').value = me.last_name;
+            $('input-username').value = me.username;
+            $('input-bio').value = me.bio;
+            $('input-bio').maxLength = BIO_LIMIT();
+            $('field-phone').value = me.phone || '—';
+            $('field-id').value = me.id;
+            validateUsername($('input-username'));
+            updateBioCounter();
+        }
+
+        async function loadMe() {
+            try {
+                applyMe(await api('/me'));
+                await loadAvatar();
+            } catch (e) {
+                showToast('Profil: ' + e.message, 'error');
+            }
+        }
+
+        function updateBioCounter() {
+            const bio = $('input-bio');
+            const len = bio.value.length;
+            $('bio-counter').textContent = `${len} / ${BIO_LIMIT()}`;
+            $('bio-counter').classList.toggle('text-rose-500', len > BIO_LIMIT());
+            $('preview-bio-text').textContent = bio.value || 'Bio kiritilmagan';
+        }
+
+        function validateUsername(input) {
+            const v = input.value.trim();
+            let msg = '';
+            if (v && v.length < 5) msg = "Kamida 5 ta belgi bo'lishi kerak";
+            else if (v && !/^[a-zA-Z]/.test(v)) msg = 'Harf bilan boshlanishi kerak';
+            else if (v && /[^a-zA-Z0-9_]/.test(v)) msg = 'Faqat a-z, 0-9 va _ ishlatish mumkin';
+            else if (v && /_$/.test(v)) msg = "_ bilan tugashi mumkin emas";
+            input.setCustomValidity(msg);
+            $('username-error').textContent = msg;
+            $('username-error').classList.toggle('hidden', !msg);
+            return !msg;
+        }
+
+        function initProfileEditor() {
+            const first = $('input-first-name'), last = $('input-last-name'), user = $('input-username'), bio = $('input-bio');
+            bio.addEventListener('input', updateBioCounter);
+            user.addEventListener('input', () => validateUsername(user));
+
+            $('avatar-file-input').addEventListener('change', async (e) => {
+                const file = e.target.files[0];
+                e.target.value = '';
+                if (!file) return;
+                if (!['image/jpeg', 'image/png'].includes(file.type)) return showToast('Faqat JPG yoki PNG', 'error');
+                if (file.size > 5 * 1024 * 1024) return showToast('Rasm 5 MB dan oshmasin', 'error');
+                if (!(await askConfirm({ title: "Profil rasmini o'zgartirasizmi?", text: "Tanlangan rasm Telegram profilingizga o'rnatiladi.", ok: "O'rnatish", danger: false }))) return;
+                const form = new FormData();
+                form.append('file', file);
+                try {
+                    await api('/me/photo', { method: 'POST', form });
+                    state.me.has_photo = true;
+                    await loadAvatar();
+                    showToast('Profil rasmi yangilandi', 'success');
+                } catch (err) {
+                    showToast('Rasm: ' + err.message, 'error');
+                }
+            });
+
+            $('profile-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                if (!state.connected) return showToast('Backend ulanmagan', 'error');
+                first.value = first.value.trim();
+                last.value = last.value.trim();
+                if (!first.value) { first.focus(); return showToast('Ism majburiy', 'error'); }
+                if (!validateUsername(user)) { user.focus(); return showToast("Username noto'g'ri", 'error'); }
+                if (bio.value.length > BIO_LIMIT()) return showToast(`Bio ${BIO_LIMIT()} belgidan oshmasin`, 'error');
+
+                const btn = $('profile-save-btn');
+                btn.disabled = true;
+                try {
+                    const me = await api('/profile', {
+                        method: 'PATCH',
+                        json: { first_name: first.value, last_name: last.value, username: user.value.trim(), bio: bio.value }
+                    });
+                    applyMe(me);
+                    showToast('Profil Telegramda yangilandi', 'success');
+                } catch (err) {
+                    showToast(err.message, 'error');
+                } finally {
+                    btn.disabled = false;
+                }
+            });
+        }
+
+        // ============================================================ statistika
+        function dayLabel(iso) {
+            const d = new Date(iso + 'T00:00:00');
+            const wd = ['Ya', 'Du', 'Se', 'Ch', 'Pa', 'Ju', 'Sh'][d.getDay()];
+            return `${wd} ${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}`;
+        }
+
+        async function loadStats(refresh = false) {
+            const btn = $('refresh-stats-btn');
+            btn.disabled = true;
+            btn.querySelector('i, svg').classList.add('fa-spin');
+            $$('.stat').forEach(s => s.classList.add('skeleton'));
+            $('stats-note').textContent = 'Telegramdan hisoblanmoqda... (birinchi marta 1–2 daqiqa olishi mumkin)';
+            try {
+                const s = await api('/stats' + (refresh ? '?refresh=1' : ''));
+                $('stat-contacts').textContent = fmt(s.contacts);
+                $('stat-contacts-sub').textContent = `Jami chatlar: ${fmt(s.dialogs_total)}`;
+                $('stat-active').textContent = fmt(s.active_chats_7d);
+                $('stat-active-sub').textContent = `O'qilmagan: ${fmt(s.unread_chats)} chat, ${fmt(s.unread_messages)} xabar`;
+                $('stat-channels').textContent = fmt(s.managed_channels);
+                $('stat-channels-sub').textContent = `${fmt(s.managed_subscribers)} obunachi`;
+                $('stat-saved').textContent = fmt(s.saved_messages);
+                $('stat-saved-sub').textContent = `${fmt(s.saved_files)} ta fayl va media`;
+                updateCharts(s);
+
+                const at = new Date(s.generated_at).toLocaleString('ru-RU', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' });
+                $('stats-note').textContent = `Yangilangan: ${at}` +
+                    (s.truncated ? " • Ba'zi juda faol chatlar to'liq hisoblanmadi (limit)" : '');
+            } catch (e) {
+                $('stats-note').textContent = 'Statistika yuklanmadi: ' + e.message;
+                showToast('Statistika: ' + e.message, 'error');
+            } finally {
+                $$('.stat').forEach(s => s.classList.remove('skeleton'));
+                btn.disabled = false;
+                btn.querySelector('i, svg').classList.remove('fa-spin');
+            }
+        }
+
+        // ============================================================ seanslar
+        function sessionIcon(s) {
+            const t = `${s.platform} ${s.system} ${s.device} ${s.app}`.toLowerCase();
+            if (/android|ios|iphone|ipad/.test(t)) return 'fa-mobile-screen-button';
+            if (/web|chrome|firefox|safari|edge|browser/.test(t)) return 'fa-globe';
+            if (/windows|mac|linux|desktop/.test(t)) return 'fa-desktop';
+            return 'fa-laptop';
+        }
+
+        function timeAgo(iso) {
+            const diff = (Date.now() - new Date(iso).getTime()) / 1000;
+            if (diff < 120) return 'hozir';
+            if (diff < 3600) return `${Math.floor(diff / 60)} daqiqa oldin`;
+            if (diff < 86400) return `${Math.floor(diff / 3600)} soat oldin`;
+            return new Date(iso).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+        }
+
+        function sessionCard(s) {
+            const card = el('div', 'session-item glass-panel p-5 rounded-2xl flex items-center justify-between gap-4 transition-all duration-300' +
+                (s.current ? ' !border-2 !border-emerald-500/40' : ''));
+            const left = el('div', 'flex items-start space-x-4 min-w-0');
+            const iconBox = el('div', 'w-12 h-12 rounded-2xl flex items-center justify-center text-xl shrink-0 ' +
+                (s.current ? 'bg-emerald-500/10 text-emerald-500' : 'sub-panel text-slate-300'));
+            iconBox.appendChild(el('i', 'fa-solid ' + sessionIcon(s)));
+
+            const info = el('div', 'min-w-0');
+            const title = el('div', 'flex items-center flex-wrap gap-2');
+            title.appendChild(el('h4', 'font-bold text-base break-words', `${s.device} (${[s.platform, s.system].filter(Boolean).join(' ')})`));
+            if (s.current) title.appendChild(el('span', 'bg-emerald-500 text-slate-900 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase', 'Shu panel'));
+            if (!s.official) title.appendChild(el('span', 'bg-amber-500/20 text-amber-500 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase', 'Norasmiy ilova'));
+            info.appendChild(title);
+            info.appendChild(el('p', 'text-xs text-slate-400 mt-1', `IP: ${s.ip} • ${s.location || "joylashuv noma'lum"}`));
+            info.appendChild(el('span', 'text-[11px] text-slate-400 block', `${s.app} • So'nggi faollik: ${timeAgo(s.active_at)}`));
+
+            left.append(iconBox, info);
+            card.appendChild(left);
+
+            if (!s.current) {
+                const btn = el('button', 'terminate-single-btn p-2.5 text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 rounded-xl shrink-0');
+                btn.title = 'Seansni yakunlash';
+                btn.setAttribute('aria-label', 'Seansni yakunlash');
+                btn.dataset.hash = s.hash;
+                btn.dataset.name = s.device;
+                btn.appendChild(el('i', 'fa-solid fa-xmark text-lg'));
+                card.appendChild(btn);
+            }
+            return card;
+        }
+
+        async function loadSessions() {
+            const cur = $('current-session-container'), others = $('other-sessions-container');
+            try {
+                const list = await api('/sessions');
+                cur.replaceChildren(...list.filter(s => s.current).map(sessionCard));
+                const rest = list.filter(s => !s.current);
+                if (rest.length) {
+                    others.replaceChildren(...rest.map(sessionCard));
+                } else {
+                    const empty = el('div', 'text-center py-8 text-slate-400 text-sm italic');
+                    empty.appendChild(el('i', 'fa-solid fa-shield-halved text-2xl text-emerald-500 mb-2 block'));
+                    empty.append("Boshqa faol seanslar yo'q.");
+                    others.replaceChildren(empty);
+                }
+                const badge = $('sessions-badge');
+                badge.textContent = rest.length;
+                badge.classList.toggle('hidden', rest.length === 0);
+                $('terminate-all-btn').disabled = rest.length === 0;
+            } catch (e) {
+                others.replaceChildren(el('p', 'text-sm text-rose-500', 'Seanslar yuklanmadi: ' + e.message));
+            }
+        }
+
+        function initSessionsManager() {
+            $('other-sessions-container').addEventListener('click', async (e) => {
+                const btn = e.target.closest('.terminate-single-btn');
+                if (!btn) return;
+                if (!(await askConfirm({ title: 'Seansni yakunlaysizmi?', text: `"${btn.dataset.name}" qurilmasi Telegram'dan chiqariladi.`, ok: 'Yakunlash' }))) return;
+                btn.disabled = true;
+                try {
+                    await api('/sessions/' + encodeURIComponent(btn.dataset.hash), { method: 'DELETE' });
+                    showToast('Seans yakunlandi', 'success');
+                    await loadSessions();
+                } catch (err) {
+                    btn.disabled = false;
+                    showToast(err.message, 'error');
+                }
+            });
+
+            $('reload-sessions-btn').addEventListener('click', loadSessions);
+            $('terminate-all-btn').addEventListener('click', async () => {
+                const ok = await askConfirm({
+                    title: 'Boshqa barcha seanslarni yakunlaysizmi?',
+                    text: "Faqat shu panel backendi sessiyasi qoladi. Telefoningiz va kompyuteringizdagi Telegram ham chiqib ketadi.",
+                    ok: 'Ha, yakunlash'
+                });
+                if (!ok) return;
+                try {
+                    await api('/sessions/others', { method: 'DELETE' });
+                    showToast('Boshqa barcha seanslar yakunlandi', 'success');
+                } catch (err) {
+                    showToast(err.message, 'error');
+                }
+                loadSessions();
+            });
+        }
+
+        // ============================================================ avto-javob
+        async function loadAutoreply() {
+            try {
+                const c = await api('/autoreply');
+                $('auto-reply-toggle').checked = c.enabled;
+                $('contacts-only-toggle').checked = c.contacts_only;
+                $('auto-reply-text').value = c.text;
+            } catch (e) {
+                showToast('Avto-javob: ' + e.message, 'error');
+            }
+        }
+
+        function initAutoresponder() {
+            const editor = $('auto-reply-text');
+            $$('.variable-btn').forEach(btn => btn.addEventListener('click', () => {
+                editor.setRangeText(btn.dataset.var, editor.selectionStart, editor.selectionEnd, 'end');
+                editor.focus();
+            }));
+
+            $('save-autoresponder-btn').addEventListener('click', async () => {
+                if (!editor.value.trim()) return showToast("Matn bo'sh", 'error');
+                const enabled = $('auto-reply-toggle').checked;
+                const contactsOnly = $('contacts-only-toggle').checked;
+                if (enabled && !contactsOnly && !(await askConfirm({ title: "Noma'lum odamlarga ham javob berilsinmi?", text: "Bu akkaunt bloklanish xavfini oshiradi. Tavsiya: faqat kontaktlarga.", ok: 'Baribir yoqish' }))) return;
+                try {
+                    await api('/autoreply', { method: 'PUT', json: { enabled, contacts_only: contactsOnly, text: editor.value } });
+                    showToast(enabled ? 'Avto-javob yoqildi' : "Saqlandi (avto-javob o'chiq)", 'success');
+                } catch (e) {
+                    showToast(e.message, 'error');
+                }
+            });
+        }
+
+        // ============================================================ sozlamalar
+        function initSettings() {
+            $('api-base-input').value = apiBase();
+            $('api-token-input').value = store.get('tg-token') || '';
+
+            $('settings-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const url = $('api-base-input').value.trim();
+                const token = $('api-token-input').value.trim();
+                if (!token) return showToast('Token kiriting', 'error');
+                store.set('tg-api', url && url !== DEFAULT_API ? url : null);
+                store.set('tg-token', token);
+                if (await connect()) {
+                    showToast('Ulandi', 'success');
+                    location.hash = '#dashboard';
+                }
+            });
+
+            $('logout-btn').addEventListener('click', () => {
+                store.set('tg-token', null);
+                $('api-token-input').value = '';
+                setConnection(null, 'Token kiritilmagan');
+                showToast("Token bu brauzerdan o'chirildi", 'info');
+            });
+        }
+
+        // ============================================================ navigatsiya / mavzu
+        function initNavigation() {
+            const links = $$('.nav-link'), sections = $$('main > section');
+            const sidebar = $('sidebar'), overlay = $('sidebar-overlay');
+            const valid = [...sections].map(s => s.id.replace('section-', ''));
+            const closeSidebar = () => { sidebar.classList.add('-translate-x-full'); overlay.classList.add('hidden'); };
+
+            function switchPage() {
+                let page = location.hash.slice(1);
+                if (!valid.includes(page)) page = 'dashboard';
+                sections.forEach(s => s.classList.toggle('hidden', s.id !== 'section-' + page));
+                links.forEach(l => l.classList.toggle('nav-active', l.getAttribute('href') === '#' + page));
+                document.querySelector('main').scrollTop = 0;
+                closeSidebar();
+            }
+            window.addEventListener('hashchange', switchPage);
+            switchPage();
+
+            $('mobile-menu-btn').addEventListener('click', () => {
+                sidebar.classList.toggle('-translate-x-full');
+                overlay.classList.toggle('hidden');
+            });
+            overlay.addEventListener('click', closeSidebar);
+        }
+
+        function initThemeToggle() {
+            $('theme-toggle').addEventListener('click', () => {
+                const html = document.documentElement;
+                const next = html.classList.contains('dark') ? 'light' : 'dark';
+                html.classList.remove('dark', 'light');
+                html.classList.add(next);
+                store.set('tg-theme', next);
+                applyChartTheme();
+            });
+        }
+
+        // ============================================================ grafiklar
+        const charts = {};
+
+        function chartColors() {
+            const light = document.documentElement.classList.contains('light');
+            return { text: light ? '#475569' : '#94a3b8', grid: light ? 'rgba(15,23,42,.08)' : 'rgba(255,255,255,.06)' };
+        }
+
+        function applyChartTheme() {
+            if (typeof Chart === 'undefined') return;
+            const c = chartColors();
+            Chart.defaults.color = c.text;
+            Object.values(charts).forEach(ch => {
+                Object.values(ch.options.scales || {}).forEach(ax => {
+                    ax.ticks = { ...(ax.ticks || {}), color: c.text };
+                    if (ax.grid?.display !== false) ax.grid = { ...(ax.grid || {}), color: c.grid };
+                });
+                if (ch.options.plugins?.legend) ch.options.plugins.legend.labels = { ...(ch.options.plugins.legend.labels || {}), color: c.text };
+                ch.update();
+            });
+        }
+
+        function initCharts() {
+            if (typeof Chart === 'undefined') return;
+            const c = chartColors();
+            Chart.defaults.color = c.text;
+            Chart.defaults.font.family = 'Inter, sans-serif';
+
+            charts.activity = new Chart($('dashActivityChart'), {
+                type: 'line',
+                data: { labels: [], datasets: [{ label: 'Yuborilgan', data: [], borderColor: '#2AABEE', backgroundColor: 'rgba(42,171,238,.12)', fill: true, tension: 0.35 }] },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: c.grid } }, x: { grid: { color: c.grid } } }
+                }
+            });
+
+            charts.dialogs = new Chart($('chatsPieChart'), {
+                type: 'doughnut',
+                data: { labels: ['Shaxsiy', 'Guruhlar', 'Kanallar', 'Botlar'], datasets: [{ data: [], backgroundColor: ['#2AABEE', '#10B981', '#F59E0B', '#8B5CF6'], borderWidth: 0 }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: c.text } } } }
+            });
+
+            charts.hourly = new Chart($('hourlyBarChart'), {
+                type: 'bar',
+                data: {
+                    labels: Array.from({ length: 24 }, (_, h) => String(h).padStart(2, '0')),
+                    datasets: [
+                        { label: 'Kiruvchi', data: [], backgroundColor: '#2AABEE', borderRadius: 4 },
+                        { label: 'Chiquvchi', data: [], backgroundColor: '#8B5CF6', borderRadius: 4 }
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { labels: { color: c.text } } },
+                    scales: { y: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: c.grid } }, x: { grid: { display: false } } }
+                }
+            });
+        }
+
+        function updateCharts(s) {
+            if (!charts.activity) return;
+            charts.activity.data.labels = s.activity.days.map(dayLabel);
+            charts.activity.data.datasets[0].data = s.activity.sent;
+            charts.dialogs.data.datasets[0].data = [s.dialogs.private, s.dialogs.groups, s.dialogs.channels, s.dialogs.bots];
+            charts.hourly.data.datasets[0].data = s.hourly.incoming;
+            charts.hourly.data.datasets[1].data = s.hourly.outgoing;
+            Object.values(charts).forEach(ch => ch.update());
+        }
+
+        // ============================================================ toast
+        function showToast(message, type = 'info') {
+            const bg = { success: 'bg-emerald-600', error: 'bg-rose-600', info: 'bg-tg-blue' }[type] || 'bg-tg-blue';
+            const icon = { success: 'fa-circle-check', error: 'fa-circle-exclamation', info: 'fa-circle-info' }[type] || 'fa-circle-info';
+            const toast = el('div', `${bg} text-white px-4 py-3 rounded-2xl shadow-xl flex items-center space-x-3 text-sm transition-all duration-300 translate-y-4 opacity-0 pointer-events-auto max-w-sm`);
+            toast.append(el('i', 'fa-solid ' + icon), el('span', null, message));
+            $('toast-container').appendChild(toast);
+            requestAnimationFrame(() => toast.classList.remove('translate-y-4', 'opacity-0'));
+            setTimeout(() => { toast.classList.add('opacity-0', 'translate-y-4'); setTimeout(() => toast.remove(), 300); }, 3500);
+        }
+
+        // ============================================================ start
+        document.addEventListener('DOMContentLoaded', () => {
+            setAvatar(PLACEHOLDER_AVATAR);
+            initNavigation();
+            initThemeToggle();
+            initCharts();
+            initProfileEditor();
+            initSessionsManager();
+            initAutoresponder();
+            initSettings();
+            $('refresh-stats-btn').addEventListener('click', () => state.connected ? loadStats(true) : showToast('Backend ulanmagan', 'error'));
+
+            if (DEMO) {
+                $('demo-banner').classList.remove('hidden');
+                $('settings-form').querySelectorAll('input, button').forEach(n => n.disabled = true);
+                connect();
+            } else if (store.get('tg-token')) {
+                connect();
+            } else {
+                setConnection(null, 'Token kiritilmagan');
+                location.hash = '#settings';
+                showToast('Avval Tizim Sozlamalari sahifasida tokenni kiriting', 'info');
+            }
+        });
+    </script>
+</body>
+</html>
